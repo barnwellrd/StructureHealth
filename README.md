@@ -1,0 +1,2 @@
+# StructureHealth
+plugin for ArkAPI
