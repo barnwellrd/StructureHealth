@@ -1,0 +1,6 @@
+{
+  "StructureHealth": {
+    "RequireAdmin": true,
+    "RequirePermission": true
+  }
+}
