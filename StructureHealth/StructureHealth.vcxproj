@@ -81,7 +81,7 @@
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <LinkIncremental>false</LinkIncremental>
-    <IncludePath>$(MSBuildStartupDirectory)\..\Permissions\Permissions\Public;$(MSBuildStartupDirectory)\..\..\ARK-Server-API\version\Core\Public;$(IncludePath)</IncludePath>
+    <IncludePath>D:\ArkAPI\Plugins_Source\Permissions\Permissions\Public;D:\ArkAPI\ArkAPI_Source\version\Core\Public;$(IncludePath)</IncludePath>
     <LibraryPath>F:\Projects;$(LibraryPath)</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
@@ -165,7 +165,6 @@
     <ClInclude Include="StructureHealthCommands.h" />
     <ClInclude Include="StructureHealthConfig.h" />
     <ClInclude Include="json.hpp" />
-    <ClInclude Include="Permissions.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
