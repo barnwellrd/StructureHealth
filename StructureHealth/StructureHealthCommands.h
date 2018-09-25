@@ -31,7 +31,7 @@ inline void ChangeStructureHealth(AShooterPlayerController* player, FString* mes
 
 	try
 	{
-		if (Parsed.Num() == 2)
+		if (Parsed.Num() == 3)
 		{
 			CommandNum = std::stoi(Parsed[1].ToString().c_str());
 			CommandArg = std::stoi(Parsed[2].ToString().c_str());
