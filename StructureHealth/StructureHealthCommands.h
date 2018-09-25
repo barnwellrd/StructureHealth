@@ -23,26 +23,26 @@ inline void ProtectStructure(APlayerController* player, FString* message, bool b
 
 	if (Parsed.Num() < 3 )
 	{
-		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectStructure <AttachedRaduis> <HealthMultiplier>");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectStructure <AttachedRadius> <HealthMultiplier>");
 		return;
 	}
 
-	int AttachedRaduis = -1;
+	int AttachedRadius = -1;
 	int HealthMultiplier = 1;
 
 	try
 	{
-		AttachedRaduis = std::stoi(Parsed[1].ToString().c_str());
+		AttachedRadius = std::stoi(Parsed[1].ToString().c_str());
 		HealthMultiplier = std::stoi(Parsed[2].ToString().c_str());
 	}
 	catch (...)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectStructure <AttachedRaduis> <HealthMultiplier>");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectStructure <AttachedRadius> <HealthMultiplier>");
 	}
 
-	if (AttachedRaduis < 0 || AttachedRaduis > 1000)
+	if (AttachedRadius < 0 || AttachedRadius > 1000)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRaduis> must be between 0 and 1000!");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRadius> must be between 0 and 1000!");
 		return;
 	}
 	if (HealthMultiplier < 1)
@@ -66,7 +66,7 @@ inline void ProtectStructure(APlayerController* player, FString* message, bool b
 			Structure->UpdatedHealth(true);
 			TArray<APrimalStructure*> linkedStructures = Structure->LinkedStructuresField();
 
-			for(int cnt = 0; cnt < AttachedRaduis-1; cnt++)
+			for(int cnt = 0; cnt < AttachedRadius-1; cnt++)
 			{
 				TArray<APrimalStructure*> tempLS;
 
@@ -117,24 +117,24 @@ inline void UnprotectStructure(APlayerController* player, FString* message, bool
 
 	if (Parsed.Num() < 2)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.UnprotectStructure <AttachedRaduis>");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.UnprotectStructure <AttachedRadius>");
 		return;
 	}
 
-	int AttachedRaduis = -1;
+	int AttachedRadius = -1;
 
 	try
 	{
-		AttachedRaduis = std::stoi(Parsed[1].ToString().c_str());
+		AttachedRadius = std::stoi(Parsed[1].ToString().c_str());
 	}
 	catch (...)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.UnprotectStructure <AttachedRaduis>");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.UnprotectStructure <AttachedRadius>");
 	}
 
-	if (AttachedRaduis < 0 || AttachedRaduis > 1000)
+	if (AttachedRadius < 0 || AttachedRadius > 1000)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRaduis> must be between 0 and 1000!");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRadius> must be between 0 and 1000!");
 		return;
 	}
 
@@ -155,7 +155,7 @@ inline void UnprotectStructure(APlayerController* player, FString* message, bool
 			Structure->UpdatedHealth(true);
 			TArray<APrimalStructure*> linkedStructures = Structure->LinkedStructuresField();
 
-			for (int cnt = 0; cnt < AttachedRaduis - 1; cnt++)
+			for (int cnt = 0; cnt < AttachedRadius - 1; cnt++)
 			{
 				TArray<APrimalStructure*> tempLS;
 
@@ -223,7 +223,7 @@ inline void ProtectTribe(APlayerController* player, FString* message, bool boole
 
 	if (HealthMultiplier < 1)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRaduis> must be greater than 0!");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRadius> must be greater than 0!");
 		return;
 	}
 
