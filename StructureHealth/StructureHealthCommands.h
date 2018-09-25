@@ -4,15 +4,16 @@
 
 #include "StructureHealth.h"
 
-inline void ChangeStructureHealth(AShooterPlayerController* player, FString* message, int mode)
+inline void ProtectStructure(APlayerController* player, FString* message, bool boolean )
 {
-	if (!player || !player->PlayerStateField() || RequiresAdmin && !player->bIsAdmin()())
+	AShooterPlayerController* shooter_controller = static_cast<AShooterPlayerController*>(player);
+	if (!shooter_controller || !shooter_controller->PlayerStateField() || RequiresAdmin && !shooter_controller->bIsAdmin()())
 		return;
 
-	const uint64 steam_id = ArkApi::IApiUtils::GetSteamIdFromController(player);
-	if (RequiresPermission && !Permissions::IsPlayerHasPermission(steam_id, "InvincibleStructures"))
+	const uint64 steam_id = ArkApi::IApiUtils::GetSteamIdFromController(shooter_controller);
+	if (RequiresPermission && !Permissions::IsPlayerHasPermission(steam_id, "StructureHealth"))
 	{
-		ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(255, 0, 0),
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
 		                                        "You don't have permissions to use this command");
 		return;
 	}
@@ -20,215 +21,326 @@ inline void ChangeStructureHealth(AShooterPlayerController* player, FString* mes
 	TArray<FString> Parsed;
 	message->ParseIntoArray(Parsed, L" ", true);
 
-	if (Parsed.Num() < 2 )
+	if (Parsed.Num() < 3 )
 	{
-		ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(255, 0, 0), "Incorrect Syntax: /sh <CommandNum> <CommandArg(optional)>");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectStructure <AttachedRaduis> <HealthMultiplier>");
 		return;
 	}
 
-	int CommandNum = -1;
-	int CommandArg = 0;
+	int AttachedRaduis = -1;
+	int HealthMultiplier = 1;
 
 	try
 	{
-		if (Parsed.Num() == 3)
-		{
-			CommandNum = std::stoi(Parsed[1].ToString().c_str());
-			CommandArg = std::stoi(Parsed[2].ToString().c_str());
-		}
-		else
-		{
-			CommandNum = std::stoi(Parsed[1].ToString().c_str());
-		}
-		
+		AttachedRaduis = std::stoi(Parsed[1].ToString().c_str());
+		HealthMultiplier = std::stoi(Parsed[2].ToString().c_str());
 	}
 	catch (...)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(255, 0, 0), "Incorrect Syntax: /sh <CommandNum> <CommandArg(optional)>");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectStructure <AttachedRaduis> <HealthMultiplier>");
 	}
 
-	if (CommandNum < 0 || CommandNum > 4)
+	if (AttachedRaduis < 0 || AttachedRaduis > 1000)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(255, 0, 0), "<CommandNum> must be between 0 and 4!");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRaduis> must be between 0 and 1000!");
 		return;
 	}
-
-	if (CommandArg < 0 || CommandArg > 100)
+	if (HealthMultiplier < 1)
 	{
-		ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(255, 0, 0), "<CommandArg> must be between 0 and 100!");
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<HealthMultiplier> must be greater than 0!");
 		return;
 	}
 	
-	AActor* Actor = player->GetPlayerCharacter()->GetAimedActor(ECC_GameTraceChannel2, nullptr, 0.0, 0.0, nullptr, nullptr,
+	AActor* Actor = shooter_controller->GetPlayerCharacter()->GetAimedActor(ECC_GameTraceChannel2, nullptr, 0.0, 0.0, nullptr, nullptr,
 	                                                            false, false);
 	if (Actor && Actor->IsA(APrimalStructure::GetPrivateStaticClass()))
 	{
 		APrimalStructure* Structure = static_cast<APrimalStructure*>(Actor);
-		AShooterPlayerState* ASPS = static_cast<AShooterPlayerState*>(player->PlayerStateField());
+		APrimalStructure* default_structure = static_cast<APrimalStructure*>(Structure->ClassField()->GetDefaultObject(true));
+		AShooterPlayerState* ASPS = static_cast<AShooterPlayerState*>(shooter_controller->PlayerStateField());
 
 		if (ASPS && ASPS->MyPlayerDataStructField())
 		{
-			float Args[] = {0};
-			const int teamId = Structure->TargetingTeamField();
+			Structure->MaxHealthField() = (default_structure->HealthField() * HealthMultiplier);
+			Structure->HealthField() = (default_structure->HealthField() * HealthMultiplier);
+			Structure->UpdatedHealth(true);
+			TArray<APrimalStructure*> linkedStructures = Structure->LinkedStructuresField();
 
-			if (teamId != player->TargetingTeamField() || ASPS->MyTribeDataField() &&
-				teamId != ASPS->MyTribeDataField()->TribeIDField())
+			for(int cnt = 0; cnt < AttachedRaduis-1; cnt++)
 			{
-				ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(255, 0, 0), "That is not your structure");
-				return;
-			}
-
-			if (CommandNum == 0)
-			{
-				FString StructName = Structure->DescriptiveNameField();
-				Structure->Demolish(player);
-				ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(0, 255, 0), "{} demolished structure: {}",
-					player->GetPlayerCharacter()->PlayerNameField().ToString().c_str(), StructName.ToString().c_str());
-			}
-
-			if (CommandNum == 1)
-			{
-				Structure->MaxHealthField() = 500000;
-				Structure->HealthField() = 500000;
-				Structure->UpdatedHealth(true);
-				TArray<APrimalStructure*> linkedStructures = Structure->LinkedStructuresField();
-
-				for(int cnt = 0; cnt < CommandArg; cnt++)
-				{
-					TArray<APrimalStructure*> tempLS;
-
-					for (APrimalStructure* ls : linkedStructures)
-					{
-						tempLS.Append(ls->LinkedStructuresField());
-
-					}
-					for (APrimalStructure* templs : tempLS)
-					{
-						linkedStructures.AddUnique(templs);
-					}
-				}
+				TArray<APrimalStructure*> tempLS;
 
 				for (APrimalStructure* ls : linkedStructures)
 				{
-					ls->MaxHealthField() = 500000;
-					ls->HealthField() = 500000;
-					ls->UpdatedHealth(true);
-					FString StructName = ls->DescriptiveNameField(); 
-					ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(0, 255, 0), "{} updated structure health: {}",
-						player->GetPlayerCharacter()->PlayerNameField().ToString().c_str(), StructName.ToString().c_str());
+					tempLS.Append(ls->LinkedStructuresField());
+
+				}
+				for (APrimalStructure* templs : tempLS)
+				{
+					linkedStructures.AddUnique(templs);
 				}
 			}
-				
-			if (CommandNum == 2)
+
+			for (APrimalStructure* ls : linkedStructures)
 			{
-				APrimalStructure* default_structure = static_cast<APrimalStructure*>(Structure->ClassField()->GetDefaultObject(true));
-
-
-				Structure->MaxHealthField() = default_structure->HealthField();
-				Structure->HealthField() = default_structure->HealthField();
-				Structure->UpdatedHealth(true);
-				TArray<APrimalStructure*> linkedStructures = Structure->LinkedStructuresField();
-
-				for (int cnt = 0; cnt < CommandArg; cnt++)
-				{
-					TArray<APrimalStructure*> tempLS;
-
-					for (APrimalStructure* ls : linkedStructures)
-					{
-						tempLS.Append(ls->LinkedStructuresField());
-
-					}
-
-					for (APrimalStructure* templs : tempLS)
-					{
-						linkedStructures.AddUnique(templs);
-					}
-				}
-
-				for (APrimalStructure* ls : linkedStructures)
-				{
-					default_structure = static_cast<APrimalStructure*>(ls->ClassField()->GetDefaultObject(true));
-					ls->MaxHealthField() = default_structure->HealthField();
-					ls->HealthField() = default_structure->HealthField();
-					ls->UpdatedHealth(true);
-					FString StructName = ls->DescriptiveNameField(); 
-					ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(0, 255, 0), "{} updated structure health: {}",
-						player->GetPlayerCharacter()->PlayerNameField().ToString().c_str(), StructName.ToString().c_str());
-
-				}
+				ls->MaxHealthField() = (default_structure->HealthField() * HealthMultiplier);
+				ls->HealthField() = (default_structure->HealthField() * HealthMultiplier);
+				ls->UpdatedHealth(true);
 			}
-				
-			if (CommandNum == 3)
-			{
-
-				/**
-					* \brief Finds all Structures owned by team
-					*/
-				TArray<AActor*> AllStructures;
-				UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*>(ArkApi::GetApiUtils().GetWorld()), APrimalStructure::GetPrivateStaticClass(), &AllStructures);
-				TArray<APrimalStructure*> FoundStructures;
-				APrimalStructure* Struc;
-
-				for (AActor* StructActor : AllStructures)
-				{
-					if (!StructActor || StructActor->TargetingTeamField() != teamId || !Actor->IsA(APrimalStructure::GetPrivateStaticClass())) continue;
-					Struc = static_cast<APrimalStructure*>(StructActor);
-					FoundStructures.Add(Struc);
-				}
-
-				for (APrimalStructure* st : FoundStructures)
-				{
-					st->MaxHealthField() = 500000;
-					st->HealthField() = 500000;
-					st->UpdatedHealth(true);
-					FString StructName = st->DescriptiveNameField();
-					ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(0, 255, 0), "{} updated structure health: {}",
-						player->GetPlayerCharacter()->PlayerNameField().ToString().c_str(), StructName.ToString().c_str());
-				}
-					
-			}
-
-			if (CommandNum == 4)
-			{
-				APrimalStructure* default_structure;
-				TArray<AActor*> AllStructures;
-				UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*>(ArkApi::GetApiUtils().GetWorld()), APrimalStructure::GetPrivateStaticClass(), &AllStructures);
-				TArray<APrimalStructure*> FoundStructures;
-				APrimalStructure* Struc;
-
-				for (AActor* StructActor : AllStructures)
-				{
-					if (!StructActor || StructActor->TargetingTeamField() != teamId || !Actor->IsA(APrimalStructure::GetPrivateStaticClass())) continue;
-					Struc = static_cast<APrimalStructure*>(StructActor);
-					FoundStructures.Add(Struc);
-				}
-
-				for (APrimalStructure* st : FoundStructures)
-				{
-					default_structure = static_cast<APrimalStructure*>(st->ClassField()->GetDefaultObject(true));
-					st->MaxHealthField() = default_structure->HealthField();
-					st->HealthField() = default_structure->HealthField();
-					st->UpdatedHealth(true);
-					FString StructName = st->DescriptiveNameField();
-					ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(0, 255, 0), "{} updated structure health: {}",
-						player->GetPlayerCharacter()->PlayerNameField().ToString().c_str(), StructName.ToString().c_str());
-				}
-			}
+			ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(0, 255, 0), "{} updated structure health by {} times default!",
+				shooter_controller->GetPlayerCharacter()->PlayerNameField().ToString().c_str(), HealthMultiplier);
 		}
 	}
 	else
 	{
-		ArkApi::GetApiUtils().SendServerMessage(player, FLinearColor(255, 0, 0),
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
 		                                        "Please face the middle of your screen towards the Structure you want to change.");
+	}
+}
+
+inline void UnprotectStructure(APlayerController* player, FString* message, bool boolean)
+{
+	AShooterPlayerController* shooter_controller = static_cast<AShooterPlayerController*>(player);
+	if (!shooter_controller || !shooter_controller->PlayerStateField() || RequiresAdmin && !shooter_controller->bIsAdmin()())
+		return;
+
+	const uint64 steam_id = ArkApi::IApiUtils::GetSteamIdFromController(shooter_controller);
+	if (RequiresPermission && !Permissions::IsPlayerHasPermission(steam_id, "StructureHealth"))
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
+			"You don't have permissions to use this command");
+		return;
+	}
+
+	TArray<FString> Parsed;
+	message->ParseIntoArray(Parsed, L" ", true);
+
+	if (Parsed.Num() < 2)
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.UnprotectStructure <AttachedRaduis>");
+		return;
+	}
+
+	int AttachedRaduis = -1;
+
+	try
+	{
+		AttachedRaduis = std::stoi(Parsed[1].ToString().c_str());
+	}
+	catch (...)
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.UnprotectStructure <AttachedRaduis>");
+	}
+
+	if (AttachedRaduis < 0 || AttachedRaduis > 1000)
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRaduis> must be between 0 and 1000!");
+		return;
+	}
+
+	AActor* Actor = shooter_controller->GetPlayerCharacter()->GetAimedActor(ECC_GameTraceChannel2, nullptr, 0.0, 0.0, nullptr, nullptr,
+		false, false);
+	if (Actor && Actor->IsA(APrimalStructure::GetPrivateStaticClass()))
+	{
+		APrimalStructure* Structure = static_cast<APrimalStructure*>(Actor);
+		APrimalStructure* default_structure = static_cast<APrimalStructure*>(Structure->ClassField()->GetDefaultObject(true));
+		AShooterPlayerState* ASPS = static_cast<AShooterPlayerState*>(shooter_controller->PlayerStateField());
+
+		if (ASPS && ASPS->MyPlayerDataStructField())
+		{
+			const int teamId = Structure->TargetingTeamField();
+
+			Structure->MaxHealthField() = default_structure->HealthField();
+			Structure->HealthField() = default_structure->HealthField();
+			Structure->UpdatedHealth(true);
+			TArray<APrimalStructure*> linkedStructures = Structure->LinkedStructuresField();
+
+			for (int cnt = 0; cnt < AttachedRaduis - 1; cnt++)
+			{
+				TArray<APrimalStructure*> tempLS;
+
+				for (APrimalStructure* ls : linkedStructures)
+				{
+					tempLS.Append(ls->LinkedStructuresField());
+
+				}
+				for (APrimalStructure* templs : tempLS)
+				{
+					linkedStructures.AddUnique(templs);
+				}
+			}
+
+			for (APrimalStructure* ls : linkedStructures)
+			{
+				ls->MaxHealthField() = default_structure->HealthField();
+				ls->HealthField() = default_structure->HealthField();
+				ls->UpdatedHealth(true);
+			}
+			ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(0, 255, 0), "{} updated structure health to default!",
+				shooter_controller->GetPlayerCharacter()->PlayerNameField().ToString().c_str());
+		}
+	}
+	else
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
+			"Please face the middle of your screen towards the Structure you want to change.");
+	}
+}
+
+inline void ProtectTribe(APlayerController* player, FString* message, bool boolean)
+{
+	AShooterPlayerController* shooter_controller = static_cast<AShooterPlayerController*>(player);
+	if (!shooter_controller || !shooter_controller->PlayerStateField() || RequiresAdmin && !shooter_controller->bIsAdmin()())
+		return;
+
+	const uint64 steam_id = ArkApi::IApiUtils::GetSteamIdFromController(shooter_controller);
+	if (RequiresPermission && !Permissions::IsPlayerHasPermission(steam_id, "StructureHealth"))
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
+			"You don't have permissions to use this command");
+		return;
+	}
+
+	TArray<FString> Parsed;
+	message->ParseIntoArray(Parsed, L" ", true);
+
+	if (Parsed.Num() < 2)
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectTribe <HealthMultiplier>");
+		return;
+	}
+
+	int HealthMultiplier = 1;
+
+	try
+	{
+		HealthMultiplier = std::stoi(Parsed[1].ToString().c_str());
+	}
+	catch (...)
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "Incorrect Syntax: StructureHealth.ProtectTribe <HealthMultiplier>");
+	}
+
+	if (HealthMultiplier < 1)
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0), "<AttachedRaduis> must be greater than 0!");
+		return;
+	}
+
+	AActor* Actor = shooter_controller->GetPlayerCharacter()->GetAimedActor(ECC_GameTraceChannel2, nullptr, 0.0, 0.0, nullptr, nullptr,
+		false, false);
+	if (Actor && Actor->IsA(APrimalStructure::GetPrivateStaticClass()))
+	{
+		APrimalStructure* Structure = static_cast<APrimalStructure*>(Actor);
+		APrimalStructure* default_structure = static_cast<APrimalStructure*>(Structure->ClassField()->GetDefaultObject(true));
+		AShooterPlayerState* ASPS = static_cast<AShooterPlayerState*>(shooter_controller->PlayerStateField());
+
+		if (ASPS && ASPS->MyPlayerDataStructField())
+		{
+			const int teamId = Structure->TargetingTeamField();
+
+			/**
+			* \brief Finds all Structures owned by team
+			*/
+			TArray<AActor*> AllStructures;
+			UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*>(ArkApi::GetApiUtils().GetWorld()), APrimalStructure::GetPrivateStaticClass(), &AllStructures);
+			TArray<APrimalStructure*> FoundStructures;
+			APrimalStructure* Struc;
+
+			for (AActor* StructActor : AllStructures)
+			{
+				if (!StructActor || StructActor->TargetingTeamField() != teamId || !Actor->IsA(APrimalStructure::GetPrivateStaticClass())) continue;
+				Struc = static_cast<APrimalStructure*>(StructActor);
+				FoundStructures.Add(Struc);
+			}
+
+			for (APrimalStructure* st : FoundStructures)
+			{
+				st->MaxHealthField() = (default_structure->HealthField() * HealthMultiplier);
+				st->HealthField() = (default_structure->HealthField() * HealthMultiplier);
+				st->UpdatedHealth(true);
+			}
+			ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(0, 255, 0), "{} updated tribe structure health by {} times default!",
+				shooter_controller->GetPlayerCharacter()->PlayerNameField().ToString().c_str(), HealthMultiplier);
+		}
+	}
+	else
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
+			"Please face the middle of your screen towards the Structure you want to change.");
+	}
+}
+
+inline void UnprotectTribe(APlayerController* player, FString* message, bool boolean)
+{
+	AShooterPlayerController* shooter_controller = static_cast<AShooterPlayerController*>(player);
+	if (!shooter_controller || !shooter_controller->PlayerStateField() || RequiresAdmin && !shooter_controller->bIsAdmin()())
+		return;
+
+	const uint64 steam_id = ArkApi::IApiUtils::GetSteamIdFromController(shooter_controller);
+	if (RequiresPermission && !Permissions::IsPlayerHasPermission(steam_id, "StructureHealth"))
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
+			"You don't have permissions to use this command");
+		return;
+	}
+
+	AActor* Actor = shooter_controller->GetPlayerCharacter()->GetAimedActor(ECC_GameTraceChannel2, nullptr, 0.0, 0.0, nullptr, nullptr,
+		false, false);
+	if (Actor && Actor->IsA(APrimalStructure::GetPrivateStaticClass()))
+	{
+		APrimalStructure* Structure = static_cast<APrimalStructure*>(Actor);
+		APrimalStructure* default_structure = static_cast<APrimalStructure*>(Structure->ClassField()->GetDefaultObject(true));
+		AShooterPlayerState* ASPS = static_cast<AShooterPlayerState*>(shooter_controller->PlayerStateField());
+
+		if (ASPS && ASPS->MyPlayerDataStructField())
+		{
+			const int teamId = Structure->TargetingTeamField();
+
+			/**
+			* \brief Finds all Structures owned by team
+			*/
+			TArray<AActor*> AllStructures;
+			UGameplayStatics::GetAllActorsOfClass(reinterpret_cast<UObject*>(ArkApi::GetApiUtils().GetWorld()), APrimalStructure::GetPrivateStaticClass(), &AllStructures);
+			TArray<APrimalStructure*> FoundStructures;
+			APrimalStructure* Struc;
+
+			for (AActor* StructActor : AllStructures)
+			{
+				if (!StructActor || StructActor->TargetingTeamField() != teamId || !Actor->IsA(APrimalStructure::GetPrivateStaticClass())) continue;
+				Struc = static_cast<APrimalStructure*>(StructActor);
+				FoundStructures.Add(Struc);
+			}
+
+			for (APrimalStructure* st : FoundStructures)
+			{
+				st->MaxHealthField() = default_structure->HealthField();
+				st->HealthField() = default_structure->HealthField();
+				st->UpdatedHealth(true);
+			}
+			ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(0, 255, 0), "{} updated tribe structure health to default!",
+				shooter_controller->GetPlayerCharacter()->PlayerNameField().ToString().c_str());
+		}
+	}
+	else
+	{
+		ArkApi::GetApiUtils().SendServerMessage(shooter_controller, FLinearColor(255, 0, 0),
+			"Please face the middle of your screen towards the Structure you want to change.");
 	}
 }
 
 inline void InitCommands()
 {
-	ArkApi::GetCommands().AddChatCommand("/sh", &ChangeStructureHealth);
+	ArkApi::GetCommands().AddConsoleCommand("StructureHealth.ProtectStructure", &ProtectStructure);
+	ArkApi::GetCommands().AddConsoleCommand("StructureHealth.UnprotectStructure", &UnprotectStructure);
+	ArkApi::GetCommands().AddConsoleCommand("StructureHealth.ProtectTribe", &ProtectTribe);
+	ArkApi::GetCommands().AddConsoleCommand("StructureHealth.UnprotectTribe", &UnprotectTribe);
 }
 
 inline void RemoveCommands()
 {
-	ArkApi::GetCommands().RemoveChatCommand("/sh");
+	ArkApi::GetCommands().RemoveConsoleCommand("StructureHealth.ProtectStructure");
+	ArkApi::GetCommands().RemoveConsoleCommand("StructureHealth.UnprotectStructure");
+	ArkApi::GetCommands().RemoveConsoleCommand("StructureHealth.ProtectTribe");
+	ArkApi::GetCommands().RemoveConsoleCommand("StructureHealth.UnprotectTribe");
 }
