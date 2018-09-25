@@ -23,9 +23,6 @@
     </ClCompile>
   </ItemGroup>
   <ItemGroup>
-    <ClInclude Include="Permissions.h">
-      <Filter>Header Files</Filter>
-    </ClInclude>
     <ClInclude Include="StructureHealth.h">
       <Filter>Header Files</Filter>
     </ClInclude>
